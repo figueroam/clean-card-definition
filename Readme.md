@@ -9,7 +9,7 @@ App para eliminar los registros repetidos en la tabla de card-definitions de la 
 
 Se considera que hay registros repetidos, cuando se encuentran más de 1 registro que tenga los mismos campos isuer-id, brand-id, segment-id y card-type-id.
 
-######El algoritmo para realizar esta limpieza consta de los siguientes pasos:
+###### El algoritmo para realizar esta limpieza consta de los siguientes pasos:
 1. Se recorre la tabla card-definitions armando un mapa en el cual la key del mapa está compuesta por una concatenación de "isuerId-brandId-cardTypeId-segmentId". Si la key no se encuentra en el mapa, se agrega de forma que el mapa queda:
 `<key=keyCompuesta, value= <cardDefinitionId, []>`
 Esto quiere decir que la primera que vez que se pase por esa key, tendremos una referencia al id de ese cardDefinition, en las próximas iteraciones iremos agregando a la lista los cardDefinitionIds que tengan la misma key. Y nos terminará quedando el id original y su lista de repetidos.
