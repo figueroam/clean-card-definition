@@ -7,7 +7,6 @@ import java.util.List;
 
 public interface BinSettingRepository extends PagingAndSortingRepository<BinSetting, Long>   {
     List<BinSetting> findAllByCardDefinitionIdIn(List<Long> cardDefinitionId);
-
 }
 
 

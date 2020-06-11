@@ -44,7 +44,7 @@ public class CleanCardDefinitionService {
         List<Map.Entry<String, IdRepeatedIdsDTO>> cardDefinitionsWithRepeateds = deleteEntriesWithoutRepeats(uniqueIdMap);
 
         //uniqueIdMap It's a very large file so I proceed to delete it after using it
-        uniqueIdMap=null;
+        uniqueIdMap = null;
         System.gc();
 
         deleteCardDefinitionRepeatsAndUpdateBinSettings(cardDefinitionsWithRepeateds);
@@ -76,7 +76,6 @@ public class CleanCardDefinitionService {
                 cardDefinitionRepository.deleteAll(allByIdIn);
             }
 
-
         }
     }
 
@@ -87,7 +86,6 @@ public class CleanCardDefinitionService {
 
     private Map<String, IdRepeatedIdsDTO> getCardDefinitionsMap() {
         Map<String, IdRepeatedIdsDTO> uniqueIdMap = new HashMap<>();
-
 
         Page<CardDefinition> cardDefinitionPage = cardDefinitionRepository.findAll(PageRequest.of(0, PAGE_SIZE));
 
