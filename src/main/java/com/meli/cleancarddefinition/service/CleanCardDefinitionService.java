@@ -39,6 +39,53 @@ public class CleanCardDefinitionService {
         log.info("Start Clean CardInfo Job");
         long startTime = System.currentTimeMillis();
 
+        Map<String, IdRepeatedIdsDTO> uniqueIdMap = getCardDefinitionsMap();
+
+        List<Map.Entry<String, IdRepeatedIdsDTO>> cardDefinitionsWithRepeateds = deleteEntriesWithoutRepeats(uniqueIdMap);
+
+        //uniqueIdMap It's a very large file so I proceed to delete it after using it
+        uniqueIdMap=null;
+        System.gc();
+
+        deleteCardDefinitionRepeatsAndUpdateBinSettings(cardDefinitionsWithRepeateds);
+
+        long endTime = System.currentTimeMillis();
+
+        log.info("Finish job in {}ms", endTime - startTime);
+    }
+
+    private void deleteCardDefinitionRepeatsAndUpdateBinSettings(List<Map.Entry<String, IdRepeatedIdsDTO>> cardDefinitionsWithRepeateds) {
+        int cardDefinitionsWithRepeatedsSize = cardDefinitionsWithRepeateds.size();
+        log.info("Cant of CardDefinitions with equal fields of issuer-id, brand-id, card-type-id and segment-id is [{}]", cardDefinitionsWithRepeatedsSize);
+        int j = 0;
+        for (Map.Entry<String, IdRepeatedIdsDTO> currentKeyValueTuple : cardDefinitionsWithRepeateds) {
+            log.info("Iteration number: {} of {}", j, cardDefinitionsWithRepeatedsSize);
+            j++;
+
+            IdRepeatedIdsDTO idRepeatedIdsDTO = currentKeyValueTuple.getValue();
+            List<Long> ids = idRepeatedIdsDTO.getIds();
+            List<List<Long>> partitions = Lists.partition(ids, SQL_IN_STATEMENT_SIZE);
+            for (List<Long> currentIdList : partitions) {
+
+                List<BinSetting> binSettingList = binSettingRepository.findAllByCardDefinitionIdIn(currentIdList);
+                binSettingList.forEach(x -> x.setCardDefinitionId(currentKeyValueTuple.getValue().getId()));
+                binSettingRepository.saveAll(binSettingList);
+
+
+                List<CardDefinition> allByIdIn = cardDefinitionRepository.findAllByIdIn(currentIdList);
+                cardDefinitionRepository.deleteAll(allByIdIn);
+            }
+
+
+        }
+    }
+
+    private List<Map.Entry<String, IdRepeatedIdsDTO>> deleteEntriesWithoutRepeats(Map<String, IdRepeatedIdsDTO> uniqueIdMap) {
+        return uniqueIdMap.entrySet().stream().filter(x -> !x.getValue().getIds().isEmpty()).collect(Collectors.toList());
+    }
+
+
+    private Map<String, IdRepeatedIdsDTO> getCardDefinitionsMap() {
         Map<String, IdRepeatedIdsDTO> uniqueIdMap = new HashMap<>();
 
 
@@ -68,36 +115,7 @@ public class CleanCardDefinitionService {
             cardDefinitionPage = cardDefinitionRepository.findAll(PageRequest.of(i, PAGE_SIZE));
 
         }
-
-        List<Map.Entry<String, IdRepeatedIdsDTO>> cardDefinitionsWithRepeateds = uniqueIdMap.entrySet().stream().filter(x -> !x.getValue().getIds().isEmpty()).collect(Collectors.toList());
-        uniqueIdMap=null;
-        System.gc();
-        int cardDefinitionsWithRepeatedsSize = cardDefinitionsWithRepeateds.size();
-        log.info("Cant of CardDefinitions with equal fields of issuer-id, brand-id, card-type-id and segment-id is [{}]", cardDefinitionsWithRepeatedsSize);
-        int j = 0;
-        for (Map.Entry<String, IdRepeatedIdsDTO> currentKeyValueTuple : cardDefinitionsWithRepeateds) {
-            log.info("Iteration number: {} of {}", j, cardDefinitionsWithRepeatedsSize);
-            j++;
-
-            IdRepeatedIdsDTO idRepeatedIdsDTO = currentKeyValueTuple.getValue();
-            List<Long> ids = idRepeatedIdsDTO.getIds();
-            List<List<Long>> partitions = Lists.partition(ids, SQL_IN_STATEMENT_SIZE);
-            for (List<Long> currentIdList : partitions) {
-
-                List<BinSetting> binSettingList = binSettingRepository.findAllByCardDefinitionIdIn(currentIdList);
-                binSettingList.forEach(x -> x.setCardDefinitionId(currentKeyValueTuple.getValue().getId()));
-                binSettingRepository.saveAll(binSettingList);
-
-
-                List<CardDefinition> allByIdIn = cardDefinitionRepository.findAllByIdIn(currentIdList);
-                cardDefinitionRepository.deleteAll(allByIdIn);
-            }
-
-
-        }
-        long endTime = System.currentTimeMillis();
-
-        log.info("Finish job in {}ms", endTime - startTime);
+        return uniqueIdMap;
     }
 
 }
