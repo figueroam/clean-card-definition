@@ -43,7 +43,7 @@ public class CleanCardDefinitionService {
 
         List<Map.Entry<String, IdRepeatedIdsDTO>> cardDefinitionsWithRepeateds = deleteEntriesWithoutRepeats(uniqueIdMap);
 
-        //uniqueIdMap It's a very large file so I proceed to delete it after using it
+        //uniqueIdMap It's a very object file so I proceed to delete it after using it
         uniqueIdMap = null;
         System.gc();
 
