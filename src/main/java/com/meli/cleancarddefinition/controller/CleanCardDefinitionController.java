@@ -18,9 +18,8 @@ public class CleanCardDefinitionController {
     private final CleanCardDefinitionService cleanCardDefinitionService;
 
     @PostMapping
-    public ResponseEntity<?> evaluate() {
-        //log.info("Get equifax evaluation for data  [{}] ", request);
-
+    public ResponseEntity<?> cleanCardDefinitionTable() {
+        log.info("Executing cleanCardDefinition process");
         cleanCardDefinitionService.cleanCardDefinition();
         return ResponseEntity.ok().build();
     }
