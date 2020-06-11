@@ -21,9 +21,9 @@ Esto quiere decir que la primera que vez que se pase por esa key, tendremos una 
 #### ¿Cómo probarlo?
 Clonar el proyecto y cambiar los parametros de configuracion hacia la base de datos que se encuentran en el path "clean-card-definition/src/main/resources/application.properties"
 
-**spring.datasource.url=jdbc:mysql://localhost:3306/binapi **
-** spring.datasource.username=binapi **
-** spring.datasource.password=binapi_dev **
+- spring.datasource.url=jdbc:mysql://localhost:3306/binapi 
+- spring.datasource.username=binapi 
+- spring.datasource.password=binapi_dev
 
 Luego hacer un Request Post a: localhost:8080/clean-card-definition
 
