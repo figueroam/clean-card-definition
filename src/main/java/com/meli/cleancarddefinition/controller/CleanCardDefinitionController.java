@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+
 
 @Slf4j
 @RequiredArgsConstructor
@@ -18,7 +20,7 @@ public class CleanCardDefinitionController {
     private final CleanCardDefinitionService cleanCardDefinitionService;
 
     @PostMapping
-    public ResponseEntity<?> cleanCardDefinitionTable() {
+    public ResponseEntity<?> cleanCardDefinitionTable() throws IOException {
         log.info("Executing cleanCardDefinition process");
         cleanCardDefinitionService.cleanCardDefinition();
         return ResponseEntity.ok().build();

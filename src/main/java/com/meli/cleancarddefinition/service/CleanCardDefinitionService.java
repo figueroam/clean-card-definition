@@ -9,11 +9,17 @@ import com.meli.cleancarddefinition.repository.BinSettingRepository;
 import com.meli.cleancarddefinition.repository.CardDefinitionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.jdbc.ScriptRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,11 +38,20 @@ public class CleanCardDefinitionService {
     private static final int PAGE_SIZE = 1000;
     private static final int SQL_IN_STATEMENT_SIZE = 999;
 
+    @Value("${spring.datasource.url}")
+    private String dataSourceUrl;
+
+    @Value("${spring.datasource.username}")
+    private String dataSourceUsername;
+
+    @Value("${spring.datasource.password}")
+    private String dataSourcePassword;
+
 
     @Transactional
-    public void cleanCardDefinition() {
-
+    public void cleanCardDefinition() throws IOException {
         log.info("Start Clean CardInfo Job");
+
         long startTime = System.currentTimeMillis();
 
         Map<String, IdRepeatedIdsDTO> uniqueIdMap = getCardDefinitionsMap();
@@ -47,36 +62,74 @@ public class CleanCardDefinitionService {
         uniqueIdMap = null;
         System.gc();
 
-        deleteCardDefinitionRepeatsAndUpdateBinSettings(cardDefinitionsWithRepeateds);
+        String sqlPath = makeSqlScript(cardDefinitionsWithRepeateds);
+
+        executeSql(sqlPath);
 
         long endTime = System.currentTimeMillis();
 
         log.info("Finish job in {}ms", endTime - startTime);
     }
 
-    private void deleteCardDefinitionRepeatsAndUpdateBinSettings(List<Map.Entry<String, IdRepeatedIdsDTO>> cardDefinitionsWithRepeateds) {
-        int cardDefinitionsWithRepeatedsSize = cardDefinitionsWithRepeateds.size();
-        log.info("Cant of CardDefinitions with equal fields of issuer-id, brand-id, card-type-id and segment-id is [{}]", cardDefinitionsWithRepeatedsSize);
-        int j = 0;
-        for (Map.Entry<String, IdRepeatedIdsDTO> currentKeyValueTuple : cardDefinitionsWithRepeateds) {
-            log.info("Iteration number: {} of {}", j, cardDefinitionsWithRepeatedsSize);
-            j++;
+    private void executeSql(String sqlScriptPath) {
+        long startTime = System.currentTimeMillis();
 
-            IdRepeatedIdsDTO idRepeatedIdsDTO = currentKeyValueTuple.getValue();
-            List<Long> ids = idRepeatedIdsDTO.getIds();
-            List<List<Long>> partitions = Lists.partition(ids, SQL_IN_STATEMENT_SIZE);
-            for (List<Long> currentIdList : partitions) {
+        log.info("Start execute sql script in pat [{}]", sqlScriptPath);
+        try {
 
-                List<BinSetting> binSettingList = binSettingRepository.findAllByCardDefinitionIdIn(currentIdList);
-                binSettingList.forEach(x -> x.setCardDefinitionId(currentKeyValueTuple.getValue().getId()));
-                binSettingRepository.saveAll(binSettingList);
+            DriverManager.registerDriver(new com.mysql.jdbc.Driver());
+            Connection con = DriverManager.getConnection(dataSourceUrl, dataSourceUsername, dataSourcePassword);
+            log.info("Connection established......");
+            ScriptRunner sr = new ScriptRunner(con);
+            Reader reader = new BufferedReader(new FileReader(sqlScriptPath));
+            sr.runScript(reader);
 
-
-                List<CardDefinition> allByIdIn = cardDefinitionRepository.findAllByIdIn(currentIdList);
-                cardDefinitionRepository.deleteAll(allByIdIn);
-            }
-
+        } catch (SQLException | FileNotFoundException e) {
+            log.error("Error trying to execute sql script", e);
         }
+        long finishTime = System.currentTimeMillis();
+
+        log.info("Finish execute sql script in [{}] ms", finishTime - startTime);
+    }
+
+
+    private String makeSqlScript(List<Map.Entry<String, IdRepeatedIdsDTO>> cardDefinitionsWithRepeats) {
+
+        try {
+
+            File file = File.createTempFile("binapi-script", ".sql");
+            log.info("Script File Path: {}", file.getAbsolutePath());
+            FileOutputStream fileOutputStream = new FileOutputStream(file);
+
+            BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(fileOutputStream));
+
+            String lineSeparator = System.getProperty("line.separator");
+            for (Map.Entry<String, IdRepeatedIdsDTO> currentKeyValueTuple : cardDefinitionsWithRepeats) {
+
+                IdRepeatedIdsDTO idRepeatedIdsDTO = currentKeyValueTuple.getValue();
+                List<Long> ids = idRepeatedIdsDTO.getIds();
+                List<List<Long>> partitions = Lists.partition(ids, SQL_IN_STATEMENT_SIZE);
+                for (List<Long> currentIdList : partitions) {
+
+                    List<BinSetting> binSettingList = binSettingRepository.findAllByCardDefinitionIdIn(currentIdList);
+                    for (BinSetting currentBinSetting : binSettingList) {
+                        bw.write(String.format("UPDATE bin_settings SET card_definition_id = %s WHERE id = %s; %s", currentKeyValueTuple.getValue().getId(), currentBinSetting.getId(), lineSeparator));
+                    }
+
+
+                    bw.write(String.format("DELETE FROM card_definitions WHERE id in (%s); %s", currentIdList.stream().map(String::valueOf).collect(Collectors.joining(",")), lineSeparator));
+                }
+
+            }
+            bw.close();
+            return file.getAbsolutePath();
+
+        } catch (IOException e) {
+            log.error("Error writing SQL File", e);
+            throw new RuntimeException("Error writing SQL File");
+        }
+
+
     }
 
     private List<Map.Entry<String, IdRepeatedIdsDTO>> deleteEntriesWithoutRepeats(Map<String, IdRepeatedIdsDTO> uniqueIdMap) {
@@ -92,7 +145,6 @@ public class CleanCardDefinitionService {
         int totalPages = cardDefinitionPage.getTotalPages();
         for (int i = 1; i <= totalPages; i++) {
 
-            log.info("Geting Page [{}] of card-card_definitions table", i);
 
             if (cardDefinitionPage.getTotalElements() > 0) {
                 List<CardDefinition> cardDefinitions = cardDefinitionPage.getContent();
@@ -114,6 +166,55 @@ public class CleanCardDefinitionService {
 
         }
         return uniqueIdMap;
+    }
+
+
+    private void executeSql3(String path) {
+
+
+        String path2 = "/Users/mfigueroa/development/clean-card-definition/src/main/resources/db/migration/binapi-script6560523158312106239.sql";
+
+        try {
+
+            //Process sortProcess = Runtime.getRuntime().exec(new String[]{"mysql", "-u", "binapi", "-pbinapi_dev", "-h", "localhost", "-P", "3306", "binapi", "<", path2});
+            Process sortProcess = Runtime.getRuntime().exec("mysql -u binapi -pbinapi_dev -h localhost -P 3306 binapi < /Users/mfigueroa/development/clean-card-definition/src/main/resources/db/migration/binapi-script6560523158312106239.sql");
+            //Process sortProcess = new ProcessBuilder(Arrays.asList("mysql", "-u", "binapi", "-pbinapi_dev","-h","localhost","-P","3306","binapi", "<", path2)).start();
+            //int exitValue = sortProcess.waitFor();
+            /// sortProcess.exitValue()
+            int exit = sortProcess.waitFor();
+
+            if (sortProcess.exitValue() != 0) {
+/*
+
+                Process exec = Runtime.getRuntime().exec(new String[]{"mysql", "-u", "binapi", "-pbinapi_dev", "show databases"});
+                int i = exec.waitFor();
+*/
+
+
+                InputStream stdout = sortProcess.getInputStream();
+                InputStream stderr = sortProcess.getErrorStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(stdout));
+                String line1 = null;
+                while ((line1 = reader.readLine()) != null) {
+                    System.out.println(line1);
+                }
+                BufferedReader errorred = new BufferedReader(new InputStreamReader(stderr));
+                while ((line1 = errorred.readLine()) != null) {
+                    System.out.println(line1);
+                }
+
+                throw new RuntimeException("Error Impacting Dump");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+
+
+       /* flyway.setLocations(s);
+        int resultCode = flyway.migrate();
+        log.info("ResultCode: [{}}", resultCode);*/
     }
 
 }
