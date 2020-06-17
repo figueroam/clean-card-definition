@@ -14,9 +14,10 @@ Se considera que hay registros repetidos, cuando se encuentran más de 1 registr
 `<key=keyCompuesta, value= <cardDefinitionId, []>`
 Esto quiere decir que la primera que vez que se pase por esa key, tendremos una referencia al id de ese cardDefinition, en las próximas iteraciones iremos agregando a la lista los cardDefinitionIds que tengan la misma key. Y nos terminará quedando el id original y su lista de repetidos.
 2. Se eliminaran del mapa aquellas keys que no posean repetidos.
-3. Por cada key se procede a hacer dos cosas:
+3. Por cada key se procede a escribir un archivo con las sentencias sql para:
 	1.  Cambiar los binSettings que posean una referencia a los cardDefinitionsIdsRepetidos, hacia el cardDefinitionOriginal
 	2. Eliminar los CardDefinitionsRepetidos.
+4. Ejecutar el script(archivo .sql) contra la base configurada en application.properties
 
 #### ¿Cómo probarlo?
 Clonar el proyecto y cambiar los parametros de configuracion hacia la base de datos que se encuentran en el path "clean-card-definition/src/main/resources/application.properties"
