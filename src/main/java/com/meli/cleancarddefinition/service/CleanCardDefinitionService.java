@@ -1,9 +1,11 @@
 package com.meli.cleancarddefinition.service;
 
 
+import ch.qos.logback.core.net.SyslogOutputStream;
 import com.google.common.collect.Lists;
 import com.meli.cleancarddefinition.domain.BinSetting;
 import com.meli.cleancarddefinition.domain.CardDefinition;
+import com.meli.cleancarddefinition.domain.PaymentMethod;
 import com.meli.cleancarddefinition.dto.IdRepeatedIdsDTO;
 import com.meli.cleancarddefinition.repository.BinSettingRepository;
 import com.meli.cleancarddefinition.repository.CardDefinitionRepository;
@@ -87,7 +89,17 @@ public class CleanCardDefinitionService {
                 List<CardDefinition> cardDefinitions = cardDefinitionPage.getContent();
 
                 for (CardDefinition currentCardDefinition : cardDefinitions) {
-                    String keyMap = String.format("%s-%s-%s-%s", currentCardDefinition.getIssuerId(), currentCardDefinition.getBrandId(), currentCardDefinition.getCardTypeId(), currentCardDefinition.getSegmentId());
+
+                    List<PaymentMethod> paymentMethods = currentCardDefinition.getPaymentMethods();
+
+                    String issuerId = currentCardDefinition.getIssuerId() != null ? currentCardDefinition.getIssuerId().toString() : "null";
+                    String brandId = currentCardDefinition.getBrandId() != null ? currentCardDefinition.getBrandId().toString() : "null";
+                    String cardTypeId = currentCardDefinition.getCardTypeId() != null ? currentCardDefinition.getCardTypeId().toString() : "null";
+                    String segmentId = currentCardDefinition.getSegmentId() != null ? currentCardDefinition.getSegmentId().toString() : "null";
+                    String pmKey = paymentMethods.isEmpty() ? "null" : paymentMethods.stream().map(PaymentMethod::getId).collect(Collectors.joining("_"));
+
+                    String keyMap = String.format("%s-%s-%s-%s-%s", issuerId, brandId, cardTypeId, segmentId, pmKey);
+                    System.out.println(keyMap);
 
                     if (uniqueIdMap.get(keyMap) == null) {
                         uniqueIdMap.put(keyMap, IdRepeatedIdsDTO.builder()
@@ -161,7 +173,7 @@ public class CleanCardDefinitionService {
         log.info("Start execute sql script in pat [{}]", sqlScriptPath);
         try {
 
-            DriverManager.registerDriver(new com.mysql.jdbc.Driver());
+            DriverManager.registerDriver(new com.mysql.cj.jdbc.Driver());
             Connection con = DriverManager.getConnection(dataSourceUrl, dataSourceUsername, dataSourcePassword);
             log.info("Connection established......");
             ScriptRunner sr = new ScriptRunner(con);
